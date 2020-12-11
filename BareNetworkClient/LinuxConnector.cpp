@@ -8,9 +8,9 @@
 
 #pragma comment(lib, "Ws2_32.lib")
 
-unsigned __stdcall LinuxConnector(void * params) {
+unsigned __stdcall LinuxConnector(void* params) {
 	printf("connector called\n");
-	PasswordFilterAccount* pf = static_cast<PasswordFilterAccount *>(params);
+	PasswordFilterAccount* pf = static_cast<PasswordFilterAccount*>(params);
 
 	/* ------------- init winsock ---------------*/
 	WSADATA wsaData;
@@ -32,7 +32,7 @@ unsigned __stdcall LinuxConnector(void * params) {
 	hints.ai_socktype = SOCK_STREAM;
 	hints.ai_protocol = IPPROTO_TCP;
 
-	/* ------------ TODO: Fix argv and default port here from params passed ------------- */
+	/* ------------ TODO: Fix: Get host/port from disk file ------------- */
 	// Resolve the server address and port
 	//iResult = getaddrinfo(argv[1], DEFAULT_PORT, &hints, &result);
 	iResult = getaddrinfo("192.168.0.144", "1234", &hints, &result);
@@ -43,31 +43,41 @@ unsigned __stdcall LinuxConnector(void * params) {
 	}
 
 	/* ----------------- --------------------- */
-	SOCKET ConnectSocket = INVALID_SOCKET;
+	SOCKET sock = INVALID_SOCKET;
 	// Attempt to connect to the first address returned by
-    // the call to getaddrinfo
+	// the call to getaddrinfo
 	ptr = result;
 	printf("connection attempt to socket\n");
 	// Create a SOCKET for connecting to server
-	ConnectSocket = socket(ptr->ai_family, ptr->ai_socktype,
+	sock = socket(ptr->ai_family, ptr->ai_socktype,
 		ptr->ai_protocol);
 
-	if (ConnectSocket == INVALID_SOCKET) {
+	if (sock == INVALID_SOCKET) {
 		printf("Error at socket(): %ld\n", WSAGetLastError());
+		fflush(stdout);
 		freeaddrinfo(result);
 		WSACleanup();
 		return 1;
 	}
-	if (ConnectSocket == INVALID_SOCKET) {
-        printf("Error at socket(): %ld\n", WSAGetLastError());
-        freeaddrinfo(result);
-        WSACleanup();
-        return 1;
-    }
+	if (sock == INVALID_SOCKET) {
+		printf("Error at socket(): %ld\n", WSAGetLastError());
+		fflush(stdout);
+		freeaddrinfo(result);
+		WSACleanup();
+		return 1;
+	}
+
+	if (connect(sock, ptr->ai_addr, ptr->ai_addrlen)) {
+		printf("connect failed\n");
+		fflush(stdout);
+		freeaddrinfo(result);
+		WSACleanup();
+		return 1;
+	}
 	/* ----------- Now should have a ConnectSocket established ------------- */
-#define DEFAULT_BUFLEN 512
+//#define DEFAULT_BUFLEN 512
+	//int recvbuflen = DEFAULT_BUFLEN;
 	printf("socket connection established\n");
-	int recvbuflen = DEFAULT_BUFLEN;
 
 	//const char* sendbuf = "this is a test";
 	char* user = getUser(params);
@@ -79,16 +89,19 @@ unsigned __stdcall LinuxConnector(void * params) {
 	sprintf_s(buf, sz + 2, "%s:%s", user, pass);
 
 	// here we do the LongCharToMultiByte() to mutate account name and password into char string
-	char recvbuf[DEFAULT_BUFLEN];
 
 	//  SEND BUFFER/CONTENT HERE !!!
+	printf("socket: %u\n", sock);
 	printf("Sending: %s\n", buf);
+	fflush(stdout);
 
-	iResult = send(ConnectSocket, buf, (int)strlen(buf), 0);
+	iResult = send(sock, buf, (int)strlen(buf), 0);
+	delete[] buf;
 	// check result of send
 	if (iResult == SOCKET_ERROR) {
 		printf("send failed: %d\n", WSAGetLastError());
-		closesocket(ConnectSocket);
+		fflush(stdout);
+		closesocket(sock);
 		WSACleanup();
 		return 1;
 	}
@@ -97,10 +110,11 @@ unsigned __stdcall LinuxConnector(void * params) {
 
 	// shutdown the connection for sending since no more data will be sent
 	// the client can still use the ConnectSocket for receiving data
-	iResult = shutdown(ConnectSocket, SD_SEND);
+	iResult = shutdown(sock, SD_SEND);
 	if (iResult == SOCKET_ERROR) {
 		printf("shutdown failed: %d\n", WSAGetLastError());
-		closesocket(ConnectSocket);
+		fflush(stdout);
+		closesocket(sock);
 		WSACleanup();
 		return 1;
 	}
