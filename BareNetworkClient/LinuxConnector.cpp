@@ -77,7 +77,7 @@ unsigned __stdcall LinuxConnector(void* params) {
 	/* ----------- Now should have a ConnectSocket established ------------- */
 //#define DEFAULT_BUFLEN 512
 	//int recvbuflen = DEFAULT_BUFLEN;
-	printf("socket connection established\n");
+	printf("socket connection established: %u\n", sock);
 
 	//const char* sendbuf = "this is a test";
 	char* user = getUser(params);
